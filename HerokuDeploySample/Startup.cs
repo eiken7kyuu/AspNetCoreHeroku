@@ -10,28 +10,45 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using HerokuDeploySample.Data;
+using System.IO;
 
 namespace HerokuDeploySample
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
             Configuration = configuration;
+            Env = env;
         }
 
         public IConfiguration Configuration { get; }
+        public IWebHostEnvironment Env { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddRazorPages();
 
-            services.AddDbContext<SchoolContext>(options =>
-                    options.UseSqlite(Configuration.GetConnectionString("SchoolContext")));
+            if (Env.IsDevelopment())
+            {
+                services.AddDbContext<SchoolContext>(options =>
+                options.UseSqlite(Configuration.GetConnectionString("SchoolContext")));
+            }
+            else
+            {
+                var uri = new Uri(Configuration["DATABASE_URL"]);
+                var userInfo = uri.UserInfo.Split(":");
+                (var user, var password) = (userInfo[0], userInfo[1]);
+                var db = Path.GetFileName(uri.AbsolutePath);
+
+                var connStr = $"Host={uri.Host};Port={uri.Port};Database={db};Username={user};Password={password};Enlist=true";
+                services.AddDbContext<SchoolContext>(options => options.UseNpgsql(connStr));
+            }
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
